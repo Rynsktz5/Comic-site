@@ -32,11 +32,18 @@ export default function AdminPage() {
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null)
   const [chapters, setChapters] = useState<Chapter[]>([])
 
+  /* NEW COMIC */
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
 
+  /* COMIC META */
+  const [author, setAuthor] = useState("")
+  const [status, setStatus] = useState("")
+  const [genres, setGenres] = useState("")
+
+  /* NEW CHAPTER */
   const [chapterTitle, setChapterTitle] = useState("")
   const [chapterNumber, setChapterNumber] = useState(1)
   const [chapterFiles, setChapterFiles] = useState<File[]>([])
@@ -100,20 +107,28 @@ export default function AdminPage() {
       title,
       description,
       cover_url: coverUrl,
+      author,
+      status,
+      genres: genres.split(",").map(g => g.trim()),
     })
 
     setTitle("")
     setDescription("")
+    setAuthor("")
+    setStatus("")
+    setGenres("")
     setCoverFile(null)
     setLoading(false)
     fetchComics()
   }
 
-  
-  /* ================= LOAD SELECTED COMIC ================= */
+  /* ================= OPEN EDITOR ================= */
 
   const openEditor = async (comic: Comic) => {
     setSelectedComic(comic)
+    setAuthor(comic.author || "")
+    setStatus(comic.status || "")
+    setGenres((comic.genres || []).join(", "))
 
     const { data } = await supabase
       .from("chapters")
@@ -124,112 +139,138 @@ export default function AdminPage() {
     setChapters(data || [])
 
     requestAnimationFrame(() => {
-      if (!editorRef.current) return
+      editorRef.current?.scrollIntoView({ behavior: "smooth" })
       anime({
         targets: editorRef.current,
         opacity: [0, 1],
-        translateY: [30, 0],
+        translateY: [40, 0],
+        duration: 500,
         easing: "easeOutExpo",
       })
     })
   }
 
-  /* ================= DELETE COMIC (CASCADE) ================= */
+  /* ================= SAVE COMIC META ================= */
 
-  const deleteComicCascade = async (comic: Comic) => {
-    const ok = confirm(
-      `Delete "${comic.title}"?\nThis will remove ALL chapters & pages permanently.`
-    )
-    if (!ok) return
+  const saveComicMeta = async () => {
+    if (!selectedComic) return
 
-    try {
-      const { data: chapterRows } = await supabase
-        .from("chapters")
-        .select("id")
-        .eq("comic_id", comic.id)
+    await supabase
+      .from("comics")
+      .update({
+        title: selectedComic.title,
+        description: selectedComic.description,
+        author,
+        status,
+        genres: genres.split(",").map(g => g.trim()),
+      })
+      .eq("id", selectedComic.id)
 
-      if (chapterRows) {
-        for (const ch of chapterRows) {
-          const { data: pages } = await supabase
-            .from("pages")
-            .select("image_url")
-            .eq("chapter_id", ch.id)
+    fetchComics()
+    alert("Comic updated")
+  }
 
-          if (pages) {
-            const paths = pages
-              .map(p => {
-                const idx = p.image_url.indexOf("/pages/")
-                return idx !== -1 ? p.image_url.slice(idx + 7) : null
-              })
-              .filter(Boolean) as string[]
+  /* ================= ADD CHAPTER ================= */
 
-            if (paths.length) {
-              await supabase.storage.from("pages").remove(paths)
-            }
-          }
+  const addChapter = async () => {
+    if (!selectedComic || !chapterTitle || chapterFiles.length === 0) return
 
-          await supabase.from("pages").delete().eq("chapter_id", ch.id)
-        }
+    setUploading(true)
 
-        await supabase.from("chapters").delete().eq("comic_id", comic.id)
-      }
+    const { data: chapter } = await supabase
+      .from("chapters")
+      .insert({
+        comic_id: selectedComic.id,
+        title: chapterTitle,
+        chapter_number: chapterNumber,
+      })
+      .select()
+      .single()
 
-      if (comic.cover_url) {
-        const idx = comic.cover_url.indexOf("/covers/")
-        if (idx !== -1) {
-          const path = comic.cover_url.slice(idx + 8)
-          await supabase.storage.from("covers").remove([path])
-        }
-      }
+    if (!chapter) return
 
-      await supabase.from("comics").delete().eq("id", comic.id)
+    for (let i = 0; i < chapterFiles.length; i++) {
+      const f = chapterFiles[i]
+      const ext = f.name.split(".").pop()
+      const path = `${chapter.id}/${crypto.randomUUID()}.${ext}`
 
-      setSelectedComic(null)
-      setChapters([])
-      fetchComics()
+      await supabase.storage.from("pages").upload(path, f)
+      const { data } = supabase.storage.from("pages").getPublicUrl(path)
 
-      alert("Comic deleted successfully")
-    } catch (err) {
-      console.error(err)
-      alert("Failed to delete comic")
+      await supabase.from("pages").insert({
+        chapter_id: chapter.id,
+        image_url: data.publicUrl,
+        page_number: i + 1,
+      })
     }
+
+    setChapterTitle("")
+    setChapterFiles([])
+    setUploading(false)
+    openEditor(selectedComic)
   }
 
   /* ================= DELETE CHAPTER ================= */
 
   const deleteChapter = async (chapterId: string) => {
-    const ok = confirm("Delete this chapter permanently?")
-    if (!ok) return
-
+    if (!confirm("Delete this chapter permanently?")) return
     await supabase.from("pages").delete().eq("chapter_id", chapterId)
     await supabase.from("chapters").delete().eq("id", chapterId)
+    if (selectedComic) openEditor(selectedComic)
+  }
 
-    if (selectedComic) {
-      const { data } = await supabase
-        .from("chapters")
-        .select("*")
-        .eq("comic_id", selectedComic.id)
-        .order("chapter_number")
+  /* ================= DELETE COMIC (CASCADE) ================= */
 
-      setChapters(data || [])
+  const deleteComicCascade = async (comic: Comic) => {
+    if (!confirm(`Delete "${comic.title}" and EVERYTHING inside it?`)) return
+
+    const { data: chs } = await supabase
+      .from("chapters")
+      .select("id")
+      .eq("comic_id", comic.id)
+
+    if (chs) {
+      for (const ch of chs) {
+        await supabase.from("pages").delete().eq("chapter_id", ch.id)
+      }
+      await supabase.from("chapters").delete().eq("comic_id", comic.id)
     }
+
+    if (comic.cover_url) {
+      const idx = comic.cover_url.indexOf("/covers/")
+      if (idx !== -1) {
+        await supabase.storage
+          .from("covers")
+          .remove([comic.cover_url.slice(idx + 8)])
+      }
+    }
+
+    await supabase.from("comics").delete().eq("id", comic.id)
+
+    setSelectedComic(null)
+    setChapters([])
+    fetchComics()
   }
 
   /* ================= RENDER ================= */
 
   return (
     <main className="min-h-screen bg-black text-red-100 p-10 space-y-12">
+
       <h1 className="text-3xl font-bold">Admin Panel</h1>
 
       {/* ADD COMIC */}
-      <section className="rounded-2xl border border-red-900/40 p-6 bg-zinc-950 space-y-4">
+      <section className="admin-box">
         <h2>Add New Comic</h2>
 
-        <input className="admin-input" placeholder="Comic title" value={title} onChange={e => setTitle(e.target.value)} />
+        <input className="admin-input" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} />
         <textarea className="admin-input" placeholder="Description" value={description} onChange={e => setDescription(e.target.value)} />
+        <input className="admin-input" placeholder="Author" value={author} onChange={e => setAuthor(e.target.value)} />
+        <input className="admin-input" placeholder="Status (ongoing / completed)" value={status} onChange={e => setStatus(e.target.value)} />
+        <input className="admin-input" placeholder="Genres (comma separated)" value={genres} onChange={e => setGenres(e.target.value)} />
         <input type="file" onChange={e => setCoverFile(e.target.files?.[0] || null)} />
 
-        <button onClick={e => { pulse(e.currentTarget); addComic() }} className="admin-btn bg-red-600">
+        <button className="admin-btn bg-red-600" onClick={addComic}>
           {loading ? "Adding..." : "Add Comic"}
         </button>
       </section>
@@ -247,35 +288,46 @@ export default function AdminPage() {
             </div>
 
             <div className="flex gap-2">
-              <button onClick={e => { pulse(e.currentTarget); openEditor(c) }} className="admin-btn bg-purple-600">
-                Edit
-              </button>
-
-              <button onClick={e => { pulse(e.currentTarget); deleteComicCascade(c) }} className="admin-btn bg-red-700">
-                Delete
-              </button>
+              <button className="admin-btn bg-purple-600" onClick={() => openEditor(c)}>Edit</button>
+              <button className="admin-btn bg-red-700" onClick={() => deleteComicCascade(c)}>Delete</button>
             </div>
           </div>
         ))}
       </section>
 
-      {/* CHAPTER LIST */}
+      {/* EDITOR */}
       {selectedComic && (
-        <section ref={editorRef} className="rounded-2xl border border-red-900/40 p-6 bg-zinc-950 space-y-4">
-          <h2>Chapters</h2>
+        <section ref={editorRef} className="admin-box space-y-6">
+          <h2>Edit Comic</h2>
+
+          <input className="admin-input" value={selectedComic.title} onChange={e => setSelectedComic({ ...selectedComic, title: e.target.value })} />
+          <textarea className="admin-input" value={selectedComic.description || ""} onChange={e => setSelectedComic({ ...selectedComic, description: e.target.value })} />
+          <input className="admin-input" value={author} onChange={e => setAuthor(e.target.value)} placeholder="Author" />
+          <input className="admin-input" value={status} onChange={e => setStatus(e.target.value)} placeholder="Status" />
+          <input className="admin-input" value={genres} onChange={e => setGenres(e.target.value)} placeholder="Genres" />
+
+          <button className="admin-btn bg-green-600" onClick={saveComicMeta}>
+            Save Comic
+          </button>
+
+          <div className="border-t border-red-900/40 pt-6 space-y-4">
+            <h3>Add Chapter</h3>
+
+            <input className="admin-input" placeholder="Chapter title" value={chapterTitle} onChange={e => setChapterTitle(e.target.value)} />
+            <input className="admin-input" type="number" value={chapterNumber} onChange={e => setChapterNumber(+e.target.value)} />
+            <input type="file" multiple onChange={e => setChapterFiles(Array.from(e.target.files || []))} />
+
+            <button className="admin-btn bg-purple-600" onClick={addChapter}>
+              {uploading ? "Uploading..." : "Create Chapter"}
+            </button>
+          </div>
 
           {chapters.map(ch => (
             <div key={ch.id} className="admin-card flex justify-between items-center">
               <span>Chapter {ch.chapter_number}: {ch.title}</span>
-
               <div className="flex gap-2">
-                <button className="admin-btn bg-blue-600" onClick={() => location.href = `/admin/chapter/${ch.id}`}>
-                  Pages
-                </button>
-
-                <button className="admin-btn bg-red-600" onClick={() => deleteChapter(ch.id)}>
-                  Delete
-                </button>
+                <button className="admin-btn bg-blue-600" onClick={() => location.href = `/admin/chapter/${ch.id}`}>Pages</button>
+                <button className="admin-btn bg-red-600" onClick={() => deleteChapter(ch.id)}>Delete</button>
               </div>
             </div>
           ))}

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import anime from "animejs/lib/anime.es.js" // ✅ REQUIRED
+import anime from "animejs/lib/anime.es.js";
 
 import {
   animateMenuIn,
@@ -22,21 +22,45 @@ export default function HomeMenu({ open, onClose }: Props) {
 
   const menuRef = useRef<HTMLDivElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
-
   const mouse = useRef({ x: 0, y: 0 });
+
+  /* ================= CONTINUE TOGGLE ================= */
   const [continueEnabled, setContinueEnabled] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("continue_enabled");
+    setContinueEnabled(stored !== "false");
+  }, []);
+
   const toggleContinue = () => {
-  const next = !continueEnabled;
-  setContinueEnabled(next);
-  localStorage.setItem("continue_enabled", String(next));
-};
+    const next = !continueEnabled;
+    setContinueEnabled(next);
+    localStorage.setItem("continue_enabled", String(next));
+  };
 
-useEffect(() => {
-  const stored = localStorage.getItem("continue_enabled");
-  setContinueEnabled(stored !== "false");
-}, []);
+  /* ================= CONTINUE NAV ================= */
+  const continueJourney = () => {
+    if (!continueEnabled) {
+      anime({
+        targets: glowRef.current,
+        scale: [1, 1.25, 1],
+        opacity: [0.3, 0.6, 0.3],
+        duration: 300,
+        easing: "easeOutQuad",
+      });
+      return;
+    }
 
-  /* ================= CURSOR FOLLOW GLOW ================= */
+    const data = localStorage.getItem("continue_reading");
+    if (!data) return;
+
+    try {
+      const { chapterId } = JSON.parse(data);
+      if (chapterId) router.push(`/reader/${chapterId}`);
+    } catch {}
+  };
+
+  /* ================= CURSOR GLOW ================= */
   useEffect(() => {
     if (!open || !glowRef.current) return;
 
@@ -55,19 +79,13 @@ useEffect(() => {
     };
 
     window.addEventListener("mousemove", move);
-
-    return () => {
-      window.removeEventListener("mousemove", move);
-    };
+    return () => window.removeEventListener("mousemove", move);
   }, [open]);
 
-  /* ================= MENU OPEN / CLOSE ================= */
+  /* ================= OPEN / CLOSE ================= */
   useEffect(() => {
     if (!menuRef.current) return;
-
-    if (open) {
-      animateMenuIn(menuRef.current);
-    }
+    if (open) animateMenuIn(menuRef.current);
   }, [open]);
 
   if (!open) return null;
@@ -121,24 +139,38 @@ useEffect(() => {
 
       {/* MENU */}
       <nav className="flex flex-col gap-6">
-        
         {item("Home", () => router.push("/"))}
         {item("Favourites", () => router.push("/favourites"))}
+
+        {/* CONTINUE READING */}
         {item("Continue Reading", () => {
           const data = localStorage.getItem("continue_reading");
           if (!data) return;
           const { chapterId } = JSON.parse(data);
-          router.push(`/reader/${chapterId}`);
+          if (chapterId) router.push(`/reader/${chapterId}`);
         })}
-        <button
-  onClick={toggleContinue}
-  className="menu-item flex items-center justify-between"
->
-  <span>Continue Your Journey</span>
-  <span className="text-xs text-red-400">
-    {continueEnabled ? "ON" : "OFF"}
-  </span>
-</button>
+
+        {/* CONTINUE YOUR JOURNEY (FIXED) */}
+        <div className="menu-item flex items-center justify-between">
+          <button
+            onClick={continueJourney}
+            disabled={!continueEnabled}
+            className={`text-left text-lg transition ${
+              continueEnabled
+                ? "text-white"
+                : "text-neutral-500 cursor-not-allowed"
+            }`}
+          >
+            Continue Your Journey
+          </button>
+
+          <button
+            onClick={toggleContinue}
+            className="text-xs text-red-400 hover:text-red-300 transition"
+          >
+            {continueEnabled ? "ON" : "OFF"}
+          </button>
+        </div>
 
         {item("Instagram", () =>
           window.open("https://instagram.com", "_blank")
