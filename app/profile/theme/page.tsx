@@ -13,7 +13,8 @@ const THEMES = [
 
 export default function ThemePage() {
   const [active, setActive] = useState("crimson");
-  const cardsRef = useRef<HTMLDivElement[]>([]);
+ const cardsRef = useRef<(HTMLButtonElement | null)[]>([])
+
 
   /* LOAD THEME */
   useEffect(() => {
@@ -58,7 +59,10 @@ export default function ThemePage() {
         {THEMES.map((t, i) => (
           <button
             key={t.id}
-            ref={el => (cardsRef.current[i] = el!)}
+            ref={el => {
+              cardsRef.current[i] = el
+            }}
+
             onClick={() => applyTheme(t.id)}
             className={`
               rounded-xl p-4 border text-left

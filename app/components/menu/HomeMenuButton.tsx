@@ -1,6 +1,11 @@
 "use client";
 
-export default function HomeMenuButton({ onClick }) {
+type HomeMenuButtonProps = {
+  onClick: () => void
+}
+
+export default function HomeMenuButton({ onClick }: HomeMenuButtonProps) {
+
   return (
     <button
       onClick={onClick}

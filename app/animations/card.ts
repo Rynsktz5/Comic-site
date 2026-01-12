@@ -1,4 +1,5 @@
-import anime from "animejs";
+import anime from "animejs/lib/anime.es.js"
+
 
 export const hoverIn = (el: HTMLElement) => {
   anime({
