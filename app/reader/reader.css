@@ -1,0 +1,109 @@
+:root {
+  --bg-main: #000000;
+  --bg-accent: #111111;
+  --text-main: #ffffff;
+  --ui-muted: rgba(255, 255, 255, 0.55);
+}
+
+/* ROOT CANVAS */
+.reader-root {
+  min-height: 100vh;
+  background:
+    radial-gradient(
+      1200px 800px at center,
+      var(--bg-accent),
+      var(--bg-main) 75%
+    );
+  color: var(--text-main);
+  transition: background 0.8s ease, color 0.3s ease;
+}
+
+/* CONTENT COLUMN */
+.reader-scroll {
+  width: min(900px, 100%);
+  margin: 0 auto;
+  padding: 0 20px 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+/* PAGE IMAGE */
+.reader-page {
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  box-shadow:
+    0 30px 90px rgba(0,0,0,0.7),
+    0 10px 30px rgba(0,0,0,0.4);
+  transition: transform 0.3s ease;
+}
+
+/* FLOATING UI PANEL */
+.reader-ui {
+  position: fixed;
+  top: 28px;
+  right: 28px;
+  z-index: 50;
+  padding: 14px 18px;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(14px);
+  border-radius: 14px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: opacity 0.35s ease;
+}
+
+.reader-ui.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reader-ui-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.reader-ui button {
+  background: none;
+  border: none;
+  color: var(--ui-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.reader-ui button.active {
+  color: var(--text-main);
+  text-decoration: underline;
+}
+
+/* BOTTOM NAV */
+.reader-nav {
+  position: fixed;
+  bottom: 28px;
+  left: 0;
+  right: 0;
+  padding: 0 40px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.reader-nav button {
+  pointer-events: auto;
+  background: none;
+  border: none;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.reader-nav button:disabled {
+  opacity: 0.25;
+  cursor: default;
+}

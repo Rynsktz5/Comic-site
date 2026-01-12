@@ -1,0 +1,6 @@
+.light-pillar {
+  position: absolute;
+  inset: 0;
+  background: red;
+  opacity: 0.6;
+}
