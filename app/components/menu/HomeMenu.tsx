@@ -136,15 +136,16 @@ const item = (
 /* ================= ADMIN ACCESS ================= */
 const goToAdmin = () => {
   const input = prompt("Enter admin password");
-
   if (!input) return;
 
   if (input === ADMIN_PASSWORD) {
+    document.cookie = "admin_auth=true; path=/";
     router.push("/admin");
   } else {
     alert("Wrong password");
   }
 };
+
 
 
 
