@@ -19,6 +19,7 @@ type Props = {
 
 export default function HomeMenu({ open, onClose }: Props) {
   const router = useRouter();
+  const ADMIN_PASSWORD = "madhuAlways";
 
   const menuRef = useRef<HTMLDivElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
@@ -38,26 +39,36 @@ export default function HomeMenu({ open, onClose }: Props) {
     localStorage.setItem("continue_enabled", String(next));
   };
 
-  /* ================= CONTINUE NAV ================= */
+  /* ================= CONTINUE LOGIC (FIXED) ================= */
   const continueJourney = () => {
     if (!continueEnabled) {
       anime({
         targets: glowRef.current,
-        scale: [1, 1.25, 1],
-        opacity: [0.3, 0.6, 0.3],
+        scale: [1, 1.2, 1],
+        opacity: [0.2, 0.6, 0.2],
         duration: 300,
         easing: "easeOutQuad",
       });
       return;
     }
 
-    const data = localStorage.getItem("continue_reading");
-    if (!data) return;
+    // 🔥 REAL SOURCE OF TRUTH
+    const keys = Object.keys(localStorage).filter(k =>
+      k.includes(":chapter_progress")
+    );
 
-    try {
-      const { chapterId } = JSON.parse(data);
-      if (chapterId) router.push(`/reader/${chapterId}`);
-    } catch {}
+    if (!keys.length) return;
+
+    const progress = JSON.parse(
+      localStorage.getItem(keys[0]) || "{}"
+    );
+
+    const chapters = Object.keys(progress);
+    if (!chapters.length) return;
+
+    // last read chapter
+    const lastChapterId = chapters[chapters.length - 1];
+    router.push(`/reader/${lastChapterId}`);
   };
 
   /* ================= CURSOR GLOW ================= */
@@ -104,57 +115,64 @@ export default function HomeMenu({ open, onClose }: Props) {
   };
 
   /* ================= MENU ITEM ================= */
-  const item = (label: string, action: () => void) => (
-    <button
-      className="menu-item text-left text-lg text-white"
-      onMouseEnter={e => animateHover(e.currentTarget)}
-      onMouseLeave={e => resetHover(e.currentTarget)}
-      onClick={e => animateClick(e.currentTarget, action)}
-    >
-      {label}
-    </button>
-  );
+  /* ================= MENU ITEM ================= */
+const item = (
+  label: string,
+  action: () => void,
+  danger = false
+) => (
+  <button
+    className={`menu-item text-left text-lg transition-colors ${
+      danger ? "text-red-400" : "text-white"
+    }`}
+    onMouseEnter={e => animateHover(e.currentTarget)}
+    onMouseLeave={e => resetHover(e.currentTarget)}
+    onClick={e => animateClick(e.currentTarget, action)}
+  >
+    {label}
+  </button>
+);
+
+/* ================= ADMIN ACCESS ================= */
+const goToAdmin = () => {
+  const input = prompt("Enter admin password");
+
+  if (!input) return;
+
+  if (input === ADMIN_PASSWORD) {
+    router.push("/admin");
+  } else {
+    alert("Wrong password");
+  }
+};
+
+
 
   /* ================= RENDER ================= */
   return (
     <div
       ref={menuRef}
-      className="
-        fixed inset-0 z-50
-        bg-black/80 backdrop-blur-xl
-        flex flex-col
-        px-10 py-8
-      "
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex flex-col px-10 py-8"
     >
-      {/* CURSOR GLOW */}
       <div ref={glowRef} className="menu-glow" />
 
-      {/* CLOSE */}
       <button
         onClick={close}
-        className="self-end mb-10 text-sm text-neutral-400 hover:text-white transition"
+        className="self-end mb-10 text-sm text-neutral-400 hover:text-white"
       >
         ✕ Close
       </button>
 
-      {/* MENU */}
       <nav className="flex flex-col gap-6">
         {item("Home", () => router.push("/"))}
         {item("Favourites", () => router.push("/favourites"))}
+        {item("Admin", goToAdmin, true)}
 
-        {/* CONTINUE READING */}
-        {item("Continue Reading", () => {
-          const data = localStorage.getItem("continue_reading");
-          if (!data) return;
-          const { chapterId } = JSON.parse(data);
-          if (chapterId) router.push(`/reader/${chapterId}`);
-        })}
 
-        {/* CONTINUE YOUR JOURNEY (FIXED) */}
+        {/* CONTINUE YOUR JOURNEY */}
         <div className="menu-item flex items-center justify-between">
           <button
             onClick={continueJourney}
-            disabled={!continueEnabled}
             className={`text-left text-lg transition ${
               continueEnabled
                 ? "text-white"
@@ -163,14 +181,15 @@ export default function HomeMenu({ open, onClose }: Props) {
           >
             Continue Your Journey
           </button>
-
+           
           <button
             onClick={toggleContinue}
-            className="text-xs text-red-400 hover:text-red-300 transition"
+            className="text-xs text-red-400 hover:text-red-300"
           >
             {continueEnabled ? "ON" : "OFF"}
           </button>
         </div>
+        
 
         {item("Instagram", () =>
           window.open("https://instagram.com", "_blank")
@@ -178,6 +197,7 @@ export default function HomeMenu({ open, onClose }: Props) {
         {item("Discord", () =>
           window.open("https://discord.gg", "_blank")
         )}
+        
       </nav>
     </div>
   );

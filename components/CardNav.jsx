@@ -188,7 +188,7 @@ const CardNav = ({
             >
               <div className="nav-card-label">{item.label}</div>
               <div className="nav-card-links">
-               {item.links?.map((lnk, i) => (
+              {item.links?.map((lnk, i) => (
   <button
     key={`${lnk.label}-${i}`}
     className="nav-card-link"
@@ -200,8 +200,7 @@ const CardNav = ({
       tlRef.current?.reverse()
     }}
   >
-
-    <GoArrowUpRight className="nav-card-link-icon" aria-hidden="true" />
+    <GoArrowUpRight className="nav-card-link-icon" />
     {lnk.label}
   </button>
 ))}

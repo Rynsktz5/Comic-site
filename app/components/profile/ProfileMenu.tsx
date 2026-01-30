@@ -81,11 +81,12 @@ export default function ProfileMenu({ open, onClose }: Props) {
       </div>
 
       {/* MENU ITEMS */}
-      <div className="flex flex-col gap-4">
-        {item("View Profile", "/profile")}
-        {item("Stats & Badges", "/profile/stats")}
-        {item("Theme", "/profile/theme")}
-      </div>
+     <div className="flex flex-col gap-4">
+  {item("View Profile", () => router.push("/profile"))}
+  {item("Stats & Badges", () => router.push("/profile/stats"))}
+  {item("Theme", () => router.push("/profile/theme"))}
+</div>
+
     </div>
   );
 }

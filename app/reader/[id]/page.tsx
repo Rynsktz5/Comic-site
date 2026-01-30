@@ -56,51 +56,28 @@ export default function ReaderPage() {
 
   const [comments, setComments] = useState<Comment[]>([])
   const [commentText, setCommentText] = useState("")
-  const [comicId, setComicId] = useState<string | null>(null);
+  const [comicId, setComicId] = useState<string | null>(null)
 
   const [settings, setSettings] = useState<ReaderSettings>({
     mode: "scroll",
     direction: "ltr",
   })
-useEffect(() => {
-  if (settingsTab !== "comments") return;
 
-  // initial load
-  const load = async () => {
-    const { data } = await supabase
-      .from("comments")
-      .select("*")
-      .eq("chapter_id", chapterId)
-      .order("created_at", { ascending: false });
+  /* ================= CONTINUE READING SAVE (FIX) ================= */
+  useEffect(() => {
+    if (!chapterId) return
 
-    setComments(data || []);
-  };
+    const payload = {
+      chapterId,
+      pageIndex,
+      updatedAt: Date.now(),
+    }
 
-  load();
-
-  // realtime listener
-  const channel = supabase
-    .channel(`comments-${chapterId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "comments",
-        filter: `chapter_id=eq.${chapterId}`,
-      },
-      payload => {
-        setComments(prev => [payload.new as any, ...prev]);
-      }
+    localStorage.setItem(
+      "continue_reading",
+      JSON.stringify(payload)
     )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [settingsTab, chapterId]);
-
-
+  }, [chapterId, pageIndex])
 
   /* ================= LOAD DATA ================= */
 
@@ -115,10 +92,9 @@ useEffect(() => {
         .select("*")
         .eq("id", chapterId)
         .single()
-         
-        setComicId(chapter.comic_id);
 
       if (!chapter) return
+      setComicId(chapter.comic_id)
 
       const { data: pageList } = await supabase
         .from("pages")
@@ -140,7 +116,7 @@ useEffect(() => {
     load()
   }, [chapterId])
 
-  /* ================= COMMENTS ================= */
+  /* ================= COMMENTS (REALTIME) ================= */
 
   useEffect(() => {
     if (settingsTab !== "comments") return
@@ -156,21 +132,40 @@ useEffect(() => {
     }
 
     load()
+
+    const channel = supabase
+      .channel(`comments-${chapterId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "comments",
+          filter: `chapter_id=eq.${chapterId}`,
+        },
+        payload => {
+          setComments(prev => [payload.new as any, ...prev])
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [settingsTab, chapterId])
 
   const sendComment = async () => {
-  if (!commentText.trim() || !chapterId || !comicId) return;
+    if (!commentText.trim() || !chapterId || !comicId) return
 
-  await supabase.from("comments").insert({
-    chapter_id: chapterId,
-    comic_id: comicId,
-    username: localStorage.getItem("username") || "Reader",
-    message: commentText.trim(),
-  });
+    await supabase.from("comments").insert({
+      chapter_id: chapterId,
+      comic_id: comicId,
+      username: localStorage.getItem("username") || "Reader",
+      message: commentText.trim(),
+    })
 
-  setCommentText("");
-};
-
+    setCommentText("")
+  }
 
   /* ================= SMART UI ================= */
 
@@ -182,7 +177,7 @@ useEffect(() => {
 
   useEffect(showUI, [pageIndex])
 
-  /* ================= PAGE MODE NAV ================= */
+  /* ================= PAGE MODE ================= */
 
   const animatePage = (dir: "next" | "prev", cb: () => void) => {
     if (!imageRef.current) return
@@ -278,7 +273,7 @@ useEffect(() => {
         </header>
       )}
 
-      {/* PROGRESS */}
+      {/* PROGRESS BAR */}
       {!uiHidden && (
         <div className="fixed top-12 left-0 right-0 h-[2px] bg-zinc-900 z-50">
           <div className="h-full bg-red-600" style={{ width: `${progress}%` }} />
@@ -289,7 +284,11 @@ useEffect(() => {
       {settings.mode === "scroll" && (
         <div className="pt-14 pb-10 space-y-12 flex flex-col items-center">
           {pages.map(p => (
-            <img key={p.id} src={p.image_url} className="max-w-[96vw] object-contain" />
+            <img
+              key={p.id}
+              src={p.image_url}
+              className="max-w-[96vw] object-contain"
+            />
           ))}
         </div>
       )}
@@ -314,14 +313,13 @@ useEffect(() => {
         </>
       )}
 
-      {/* SETTINGS */}
+      {/* SETTINGS PANEL */}
       {settingsOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm">
           <div
             ref={settingsRef}
             className="absolute right-4 top-16 bottom-6 w-80 rounded-2xl bg-black/60 backdrop-blur-xl border border-red-900/40 p-4 flex flex-col"
           >
-            {/* TABS */}
             <div className="flex gap-2 mb-3">
               {["settings", "chapters", "comments"].map(tab => (
                 <button
@@ -338,7 +336,6 @@ useEffect(() => {
               ))}
             </div>
 
-            {/* CONTENT */}
             <div className="flex-1 overflow-y-auto space-y-3">
               {settingsTab === "settings" && (
                 <>
@@ -391,7 +388,6 @@ useEffect(() => {
                 ))}
             </div>
 
-            {/* COMMENT INPUT */}
             {settingsTab === "comments" && (
               <div className="mt-3 flex gap-2">
                 <input
