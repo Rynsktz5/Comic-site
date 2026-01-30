@@ -16,6 +16,8 @@ type Props = {
   open: boolean;
   onClose: () => void;
 };
+console.log("MENU VERSION: ADMIN ADDED");
+
 
 export default function HomeMenu({ open, onClose }: Props) {
   const router = useRouter();
